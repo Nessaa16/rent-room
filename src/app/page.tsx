@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Users, DoorOpen, Package, ClipboardList, Clock, CheckCircle, XCircle, Archive } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
@@ -26,23 +27,52 @@ interface RecentItem {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    fetch("/api/dashboard")
-      .then((res) => res.json())
-      .then((data) => {
+    const initialize = async () => {
+      try {
+        const authResponse = await fetch("/api/auth/verify");
+        if (!authResponse.ok) {
+          router.push("/login");
+          return;
+        }
+
+        const authData = await authResponse.json();
+        const role = authData.data?.user?.role;
+        if (role !== "admin") {
+          router.push("/peminjaman");
+          return;
+        }
+
+        setAuthorized(true);
+        const response = await fetch("/api/dashboard");
+        if (!response.ok) {
+          router.push("/login");
+          return;
+        }
+
+        const data = await response.json();
         if (data.success) {
           setStats(data.data.stats);
           setRecent(data.data.recentPeminjaman);
         }
-      })
-      .finally(() => setLoading(false));
-  }, []);
+      } catch (error) {
+        console.error("Error checking auth:", error);
+        router.push("/login");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  if (loading) {
+    initialize();
+  }, [router]);
+
+  if (loading || !authorized) {
     return (
       <div className="p-8">
         <Spinner />

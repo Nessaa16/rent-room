@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getUserFromRequest } from "@/lib/serverAuth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const auth = await getUserFromRequest(req);
+    if (!auth.user) {
+      return NextResponse.json(
+        { success: false, message: auth.error || "Autentikasi diperlukan." },
+        { status: 401 }
+      );
+    }
+
+    const isAdmin = auth.user.role === "admin";
+    const whereClause = isAdmin
+      ? undefined
+      : { peminjam: { email: auth.user.email } };
+
     const peminjaman = await prisma.peminjaman.findMany({
+      where: whereClause,
       orderBy: { createdAt: "desc" },
       include: {
         peminjam: true,
@@ -28,6 +43,14 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await getUserFromRequest(req);
+    if (!auth.user) {
+      return NextResponse.json(
+        { success: false, message: auth.error || "Autentikasi diperlukan." },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const { peminjamId, ruangId, tanggalPakai, durasiJam, keperluan, catatan, peralatanList } = body;
 
@@ -52,6 +75,18 @@ export async function POST(req: NextRequest) {
     const parsedDurasi = Number(durasiJam);
     if (!durasiJam || isNaN(parsedDurasi) || parsedDurasi <= 0) {
       return NextResponse.json({ success: false, message: "Durasi harus lebih dari 0 jam." }, { status: 400 });
+    }
+
+    if (auth.user.role !== "admin") {
+      const ownPeminjam = await prisma.peminjam.findFirst({
+        where: { id: Number(peminjamId), email: auth.user.email },
+      });
+      if (!ownPeminjam) {
+        return NextResponse.json(
+          { success: false, message: "Tidak dapat membuat peminjaman untuk peminjam lain." },
+          { status: 403 }
+        );
+      }
     }
 
     // Validasi ketersediaan ruang

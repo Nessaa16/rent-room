@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getUserFromRequest } from "@/lib/serverAuth";
 
 export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await getUserFromRequest(req);
+    if (!auth.user) {
+      return NextResponse.json(
+        { success: false, message: auth.error || "Autentikasi diperlukan." },
+        { status: 401 }
+      );
+    }
+
     const { id: rawId } = await context.params;
     const id = Number(rawId);
     const body = await req.json();
@@ -16,15 +25,27 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       return NextResponse.json({ success: false, message: "Jenis akun tidak valid." }, { status: 400 });
     }
 
+    const existing = await prisma.peminjam.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ success: false, message: "Peminjam tidak ditemukan." }, { status: 404 });
+    }
+
+    if (auth.user.role !== "admin" && existing.email !== auth.user.email) {
+      return NextResponse.json(
+        { success: false, message: "Tidak dapat mengubah peminjam lain." },
+        { status: 403 }
+      );
+    }
+
     const updated = await prisma.peminjam.update({
       where: { id },
       data: {
         nama: nama.trim(),
         nimNik: nimNik?.trim() || null,
         telp: telp?.trim() || null,
-        email: email?.trim() || null,
+        email: auth.user.role === "admin" ? email?.trim() || null : auth.user.email,
         fakultas: fakultas?.trim() || null,
-        jenisAkun: jenisAkun ?? "mahasiswa",
+        jenisAkun: jenisAkun ?? (auth.user.role === "dosen" ? "dosen" : "mahasiswa"),
       },
     });
 
@@ -35,10 +56,29 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
   }
 }
 
-export async function DELETE(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await getUserFromRequest(req);
+    if (!auth.user) {
+      return NextResponse.json(
+        { success: false, message: auth.error || "Autentikasi diperlukan." },
+        { status: 401 }
+      );
+    }
+
     const { id: rawId } = await context.params;
     const id = Number(rawId);
+
+    const existing = await prisma.peminjam.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ success: false, message: "Peminjam tidak ditemukan." }, { status: 404 });
+    }
+    if (auth.user.role !== "admin" && existing.email !== auth.user.email) {
+      return NextResponse.json(
+        { success: false, message: "Tidak dapat menghapus peminjam lain." },
+        { status: 403 }
+      );
+    }
 
     const activeCount = await prisma.peminjaman.count({
       where: { peminjamId: id, status: { in: ["MENUNGGU", "DISETUJUI"] } },

@@ -132,11 +132,15 @@ export default function PeminjamanPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [selectedPeralatan, setSelectedPeralatan] = useState<SelectedPeralatan[]>([]);
   const [filterStatus, setFilterStatus] = useState<StatusPengajuan | "semua">("semua");
   const [modal, setModal] = useState<ModalState>(MODAL_INIT);
   const [submittingModal, setSubmittingModal] = useState(false);
   const [printTimestamp, setPrintTimestamp] = useState("");
+  const [durasiError, setDurasiError] = useState<string | null>(null);
+  const [tanggalError, setTanggalError] = useState<string | null>(null);
+  const [roomAvailabilityError, setRoomAvailabilityError] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setPrintTimestamp(new Date().toLocaleString("id-ID")); }, []);
@@ -161,18 +165,69 @@ export default function PeminjamanPage() {
     return () => document.removeEventListener("keydown", handleKey);
   }, [modal.open]);
 
+  // Validasi durasi saat form berubah
+  useEffect(() => {
+    if (form.durasiJam) {
+      validateDurasi(form.durasiJam);
+    }
+  }, [form.durasiJam]);
+
+  // Validasi tanggal tidak boleh masa lampau
+  useEffect(() => {
+    if (form.tanggalPakai) {
+      validateTanggal(form.tanggalPakai);
+    } else {
+      setTanggalError(null);
+      setRoomAvailabilityError(null);
+    }
+  }, [form.tanggalPakai]);
+
+  useEffect(() => {
+    async function checkRoomAvailability() {
+      if (!form.ruangId || !form.tanggalPakai || tanggalError) {
+        setRoomAvailabilityError(null);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/peminjaman/check?ruangId=${encodeURIComponent(form.ruangId)}&tanggalPakai=${encodeURIComponent(form.tanggalPakai)}`
+        );
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          setRoomAvailabilityError(data.message || "Ruang tidak tersedia.");
+          return;
+        }
+
+        setRoomAvailabilityError(null);
+      } catch (error) {
+        console.error("Error checking room availability:", error);
+        setRoomAvailabilityError("Gagal memeriksa ketersediaan ruangan.");
+      }
+    }
+
+    checkRoomAvailability();
+  }, [form.ruangId, form.tanggalPakai, tanggalError]);
+
   useEffect(() => {
     async function loadData() {
       try {
-        const [optRes, listRes] = await Promise.all([
+        const [optRes, listRes, authRes] = await Promise.all([
           fetch("/api/peminjaman/options"),
           fetch("/api/peminjaman"),
+          fetch("/api/auth/verify"),
         ]);
         const safeJson = async (res: Response) => {
           if (!res.ok) { console.error("API error", res.status); return { success: false }; }
           try { return await res.json(); } catch { return { success: false }; }
         };
-        const [optData, listData] = await Promise.all([safeJson(optRes), safeJson(listRes)]);
+        const [optData, listData, authData] = await Promise.all([
+          safeJson(optRes), safeJson(listRes), safeJson(authRes),
+        ]);
+        if (authData.success && authData.data?.user?.role) {
+          setUserRole(authData.data.user.role);
+        }
         if (optData.success) setOptions(optData.data);
         if (listData.success) setList(listData.data);
       } catch (error) {
@@ -182,6 +237,11 @@ export default function PeminjamanPage() {
       }
     }
     loadData();
+  }, []);
+
+  // Validasi awal untuk durasi default
+  useEffect(() => {
+    validateDurasi(EMPTY_FORM.durasiJam);
   }, []);
 
   const stockError = useMemo(() => {
@@ -203,9 +263,46 @@ export default function PeminjamanPage() {
   }, [selectedPeralatan, options.peralatan]);
 
   const canSubmit = useMemo(
-    () => Boolean(form.peminjamId && form.ruangId && form.tanggalPakai && Number(form.durasiJam) > 0 && !stockError),
-    [form, stockError]
+    () => Boolean(
+      form.peminjamId &&
+      form.ruangId &&
+      form.tanggalPakai &&
+      Number(form.durasiJam) > 0 &&
+      !stockError &&
+      !durasiError &&
+      !tanggalError &&
+      !roomAvailabilityError
+    ),
+    [form, stockError, durasiError, tanggalError, roomAvailabilityError]
   );
+
+  function validateTanggal(value: string) {
+    const selectedDate = new Date(value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (selectedDate < today) {
+      setTanggalError("Tanggal peminjaman tidak boleh di masa lampau.");
+      return false;
+    }
+
+    setTanggalError(null);
+    return true;
+  }
+
+  function validateDurasi(value: string) {
+    const numValue = Number(value);
+    if (numValue <= 0) {
+      setDurasiError("Durasi harus minimal 1 jam.");
+      return false;
+    }
+    if (numValue > 24) {
+      setDurasiError("Durasi maksimal 24 jam.");
+      return false;
+    }
+    setDurasiError(null);
+    return true;
+  }
 
   function addPeralatanRow() {
     setSelectedPeralatan((prev) => [...prev, { peralatanId: "", jumlah: 1 }]);
@@ -244,6 +341,7 @@ export default function PeminjamanPage() {
         setList((cur) => [data.data, ...cur]);
         setForm(EMPTY_FORM);
         setSelectedPeralatan([]);
+        setDurasiError(null);
       } else {
         alert(data.message || "Gagal membuat peminjaman.");
       }
@@ -397,6 +495,9 @@ export default function PeminjamanPage() {
                   Kapasitas: {selectedRuang.kapasitas ?? "—"} orang ·{" "}
                 </p>
               )}
+              {roomAvailabilityError && (
+                <p className="mt-1.5 text-xs text-red-500">{roomAvailabilityError}</p>
+              )}
             </label>
 
             {/* Peralatan multi-row */}
@@ -479,14 +580,36 @@ export default function PeminjamanPage() {
               <label className="block text-sm font-medium text-slate-700">
                 Tanggal Pakai <span className="text-red-500">*</span>
                 <input type="date" value={form.tanggalPakai}
-                  onChange={(e) => setForm((p) => ({ ...p, tanggalPakai: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setForm((p) => ({ ...p, tanggalPakai: value }));
+                    validateTanggal(value);
+                  }}
+                  className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:ring-2 ${
+                    tanggalError
+                      ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                      : "border-slate-200 focus:border-blue-400 focus:ring-blue-100"
+                  }`} />
+                {tanggalError && (
+                  <p className="mt-1 text-xs text-red-500">{tanggalError}</p>
+                )}
               </label>
               <label className="block text-sm font-medium text-slate-700">
                 Durasi (Jam) <span className="text-red-500">*</span>
                 <input type="number" min={1} max={24} value={form.durasiJam}
-                  onChange={(e) => setForm((p) => ({ ...p, durasiJam: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setForm((p) => ({ ...p, durasiJam: value }));
+                    validateDurasi(value);
+                  }}
+                  className={`mt-2 w-full rounded-2xl border bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:ring-2 ${
+                    durasiError
+                      ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                      : "border-slate-200 focus:border-blue-400 focus:ring-blue-100"
+                  }`} />
+                {durasiError && (
+                  <p className="mt-1 text-xs text-red-500">{durasiError}</p>
+                )}
               </label>
             </div>
 
@@ -508,7 +631,7 @@ export default function PeminjamanPage() {
             </label>
 
             <button type="submit" disabled={!canSubmit || saving}
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300">
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-orange-400 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-orange-300">
               {saving ? "Menyimpan..." : "Ajukan Peminjaman"}
             </button>
 
@@ -568,7 +691,7 @@ export default function PeminjamanPage() {
                         <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${STATUS_COLORS[item.status]}`}>
                           {STATUS_LABELS[item.status]}
                         </span>
-                        {item.status === "menunggu" && (
+                        {userRole === "admin" && item.status === "menunggu" && (
                           <div className="flex gap-1">
                             <button onClick={() => openModal(item, "disetujui")}
                               className="rounded-xl bg-green-600 px-3 py-1 text-xs font-medium text-white transition hover:bg-green-700">
@@ -580,7 +703,7 @@ export default function PeminjamanPage() {
                             </button>
                           </div>
                         )}
-                        {item.status === "disetujui" && (
+                        {userRole === "admin" && item.status === "disetujui" && (
                           <button onClick={() => openModal(item, "selesai")}
                             className="rounded-xl px-3 py-1 text-xs font-medium bg-green-600 text-white">
                             Selesai

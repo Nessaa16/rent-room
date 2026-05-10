@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyAdmin } from "@/lib/serverAuth";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   MENUNGGU: ["DISETUJUI", "DITOLAK"],
@@ -10,6 +11,14 @@ export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const adminCheck = await verifyAdmin(req);
+  if (!adminCheck.isAdmin) {
+    return NextResponse.json(
+      { success: false, message: adminCheck.error || "Hanya admin yang dapat mengakses." },
+      { status: 401 }
+    );
+  }
+
   try {
     const { id: rawId } = await context.params;
     const id = Number(rawId);

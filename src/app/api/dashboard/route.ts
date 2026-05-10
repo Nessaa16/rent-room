@@ -1,7 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyAdmin } from "@/lib/serverAuth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const adminCheck = await verifyAdmin(req);
+  if (!adminCheck.isAdmin) {
+    return NextResponse.json(
+      { success: false, message: adminCheck.error || "Hanya admin yang dapat mengakses." },
+      { status: 401 }
+    );
+  }
+
   try {
     const [
       totalPeminjam,

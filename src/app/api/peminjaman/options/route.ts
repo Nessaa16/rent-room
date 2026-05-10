@@ -1,13 +1,31 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getUserFromRequest } from "@/lib/serverAuth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const auth = await getUserFromRequest(req);
+    if (!auth.user) {
+      return NextResponse.json(
+        { success: false, message: auth.error || "Autentikasi diperlukan." },
+        { status: 401 }
+      );
+    }
+
+    const peminjamQuery =
+      (auth.user.role === "admin" || auth.user.role === "dosen")
+        ? prisma.peminjam.findMany({
+            orderBy: { nama: "asc" },
+            select: { id: true, nama: true, jenisAkun: true, nimNik: true },
+          })
+        : prisma.peminjam.findMany({
+            where: { email: auth.user.email },
+            orderBy: { nama: "asc" },
+            select: { id: true, nama: true, jenisAkun: true, nimNik: true },
+          });
+
     const [peminjam, ruang, peralatan] = await Promise.all([
-      prisma.peminjam.findMany({
-        orderBy: { nama: "asc" },
-        select: { id: true, nama: true, jenisAkun: true, nimNik: true },
-      }),
+      peminjamQuery,
       prisma.ruang.findMany({
         orderBy: { nama: "asc" },
         select: {

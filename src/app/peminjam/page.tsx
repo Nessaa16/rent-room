@@ -116,34 +116,6 @@ export default function PeminjamPage() {
             {editingId ? "Edit Peminjam" : "Tambah Peminjam Baru"}
           </h2>
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            {/* Jenis Akun */}
-            <div>
-              <p className="text-sm font-medium text-slate-700 mb-2">Jenis Akun</p>
-              <div className="grid grid-cols-2 gap-2">
-                {(["mahasiswa", "dosen"] as JenisAkun[]).map((jenis) => (
-                  <button
-                    key={jenis}
-                    type="button"
-                    onClick={() => setForm((prev) => ({ ...prev, jenisAkun: jenis }))}
-                    className={`rounded-2xl border px-4 py-2.5 text-sm font-medium capitalize transition ${form.jenisAkun === jenis
-                        ? "border-blue-500 bg-blue-50 text-blue-700"
-                        : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300"
-                      }`}
-                  >
-                    {jenis === "mahasiswa" ? (
-                      <>
-                        Mahasiswa
-                      </>
-                    ) : (
-                      <>
-                        Dosen
-                      </>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <label className="block text-sm font-medium text-slate-700">
               Nama Lengkap <span className="text-red-500">*</span>
               <input
