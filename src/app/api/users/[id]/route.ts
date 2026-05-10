@@ -28,7 +28,7 @@ async function verifyAdmin(req: NextRequest) {
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const adminCheck = await verifyAdmin(req);
   if (!adminCheck.isAdmin) {
@@ -39,11 +39,11 @@ export async function PUT(
   }
 
   try {
-    const userId = Number(params.id);
+    const { id } = await params;
+    const userId = Number(id);
     const body = await req.json();
     const { nama, email, password, role } = body;
 
-    // Cek user ada atau tidak
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       return NextResponse.json(
@@ -72,7 +72,6 @@ export async function PUT(
         );
       }
 
-      // Cek email unik (jika berbeda)
       if (email.toLowerCase().trim() !== user.email) {
         const existing = await prisma.user.findUnique({
           where: { email: email.toLowerCase().trim() },
@@ -114,7 +113,6 @@ export async function PUT(
       updateData.role = normalizedRole;
     }
 
-    // Update user
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: updateData,
@@ -143,7 +141,7 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const adminCheck = await verifyAdmin(req);
   if (!adminCheck.isAdmin) {
@@ -154,9 +152,9 @@ export async function DELETE(
   }
 
   try {
-    const userId = Number(params.id);
+    const { id } = await params;
+    const userId = Number(id);
 
-    // Cek user ada atau tidak
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       return NextResponse.json(
@@ -165,7 +163,6 @@ export async function DELETE(
       );
     }
 
-    // Jangan biarkan delete user admin
     if (user.role === "admin") {
       return NextResponse.json(
         { success: false, message: "Tidak bisa menghapus user admin." },
@@ -173,7 +170,6 @@ export async function DELETE(
       );
     }
 
-    // Delete user
     await prisma.user.delete({ where: { id: userId } });
 
     return NextResponse.json({

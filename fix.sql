@@ -1,1 +1,0 @@
-﻿UPDATE `user` SET `createdAt` = NOW() WHERE CAST(`createdAt` AS CHAR) LIKE '%current%' OR `createdAt` = '0000-00-00 00:00:00';
