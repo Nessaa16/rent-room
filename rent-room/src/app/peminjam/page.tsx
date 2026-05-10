@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Spinner } from "@/components/ui/Spinner";
+import { GraduationCap, UserRoundCog } from "lucide-react";
 
 type JenisAkun = "mahasiswa" | "dosen";
 
@@ -124,13 +125,20 @@ export default function PeminjamPage() {
                     key={jenis}
                     type="button"
                     onClick={() => setForm((prev) => ({ ...prev, jenisAkun: jenis }))}
-                    className={`rounded-2xl border px-4 py-2.5 text-sm font-medium capitalize transition ${
-                      form.jenisAkun === jenis
+                    className={`rounded-2xl border px-4 py-2.5 text-sm font-medium capitalize transition ${form.jenisAkun === jenis
                         ? "border-blue-500 bg-blue-50 text-blue-700"
                         : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300"
-                    }`}
+                      }`}
                   >
-                    {jenis === "mahasiswa" ? "🎓 Mahasiswa" : "👨‍🏫 Dosen"}
+                    {jenis === "mahasiswa" ? (
+                      <>
+                        Mahasiswa
+                      </>
+                    ) : (
+                      <>
+                        Dosen
+                      </>
+                    )}
                   </button>
                 ))}
               </div>
@@ -200,7 +208,7 @@ export default function PeminjamPage() {
               <button
                 type="submit"
                 disabled={!canSubmit || saving}
-                className="inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                className="inline-flex w-full items-center justify-center rounded-2xl bg-orange-400 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-orange-300"
               >
                 {saving ? "Menyimpan..." : editingId ? "Simpan Perubahan" : "Tambah Peminjam"}
               </button>
@@ -240,15 +248,14 @@ export default function PeminjamPage() {
                     <div>
                       <p className="font-medium text-slate-900">{item.nama}</p>
                       <p className="mt-0.5 text-xs text-slate-400">
-                        {item.nimNik || "—"} · {item.fakultas || "—"}
+                        {item.nimNik || "-"} · {item.fakultas || "-"}
                       </p>
                     </div>
                     <span
-                      className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        item.jenisAkun === "dosen"
+                      className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${item.jenisAkun === "dosen"
                           ? "bg-purple-50 text-purple-700"
                           : "bg-blue-50 text-blue-700"
-                      }`}
+                        }`}
                     >
                       {item.jenisAkun === "dosen" ? "Dosen" : "Mahasiswa"}
                     </span>
@@ -259,7 +266,7 @@ export default function PeminjamPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => startEdit(item)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-blue-300 hover:text-blue-600"
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-blue-300 hover:text-orange-400"
                       >
                         Edit
                       </button>

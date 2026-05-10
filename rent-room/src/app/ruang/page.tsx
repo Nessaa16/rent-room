@@ -169,7 +169,7 @@ export default function RuangPage() {
                 </button>
               )}
               <button type="submit" disabled={!canSubmit || saving}
-                className="inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300">
+                className="inline-flex w-full items-center justify-center rounded-2xl bg-orange-400 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-orange-300">
                 {saving ? "Menyimpan..." : editingId ? "Simpan Perubahan" : "Tambah Ruang"}
               </button>
             </div>
@@ -220,12 +220,12 @@ export default function RuangPage() {
                           : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
                       } disabled:opacity-50`}
                     >
-                      {togglingId === item.id ? "..." : item.status === "TERSEDIA" ? "✅ Tersedia" : "🔴 Digunakan"}
+                      {togglingId === item.id ? "..." : item.status === "TERSEDIA" ? "Tersedia" : "Digunakan"}
                     </button>
 
                     <div className="flex gap-2">
                       <button onClick={() => startEdit(item)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-blue-300 hover:text-blue-600">
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-blue-300 hover:text-orange-400">
                         Edit
                       </button>
                       <button onClick={() => handleDelete(item.id)} disabled={deletingId === item.id}

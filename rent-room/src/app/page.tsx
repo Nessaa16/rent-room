@@ -53,8 +53,8 @@ export default function HomePage() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-blue-600">Dashboard</p>
-        <h1 className="mt-3 text-3xl font-semibold text-slate-900">Ringkasan Sistem Peminjaman Ruang & Peralatan</h1>
+        <p className="text-sm font-semibold uppercase tracking-[0.24em] text-orange-400">Dashboard</p>
+        <h1 className="mt-3 text-3xl font-semibold text-slate-900">Ringkasan Riwayat Keseluruhan Peminjaman Ruang & Peralatan</h1>
         <p className="mt-2 text-sm text-slate-500">Kelola peminjam, ruang, peralatan, dan peminjaman dalam satu sistem.</p>
       </div>
 

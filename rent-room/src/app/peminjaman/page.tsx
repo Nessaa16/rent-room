@@ -184,21 +184,28 @@ export default function PeminjamanPage() {
     loadData();
   }, []);
 
-  const canSubmit = useMemo(
-    () => Boolean(form.peminjamId && form.ruangId && form.tanggalPakai && Number(form.durasiJam) > 0),
-    [form]
-  );
-
-  function validateStok(): string | null {
+  const stockError = useMemo(() => {
     for (const sel of selectedPeralatan) {
       if (!sel.peralatanId) continue;
       const opt = options.peralatan.find((p) => p.id === Number(sel.peralatanId));
-      if (opt && sel.jumlah > opt.stok) {
+      if (!opt) continue;
+      if (opt.stok <= 0) {
+        return `Stok "${opt.nama}" habis (stok: 0)`;
+      }
+      if (sel.jumlah <= 0) {
+        return `Jumlah "${opt.nama}" harus lebih dari 0`;
+      }
+      if (sel.jumlah > opt.stok) {
         return `Stok "${opt.nama}" tidak cukup (tersedia: ${opt.stok}, diminta: ${sel.jumlah})`;
       }
     }
     return null;
-  }
+  }, [selectedPeralatan, options.peralatan]);
+
+  const canSubmit = useMemo(
+    () => Boolean(form.peminjamId && form.ruangId && form.tanggalPakai && Number(form.durasiJam) > 0 && !stockError),
+    [form, stockError]
+  );
 
   function addPeralatanRow() {
     setSelectedPeralatan((prev) => [...prev, { peralatanId: "", jumlah: 1 }]);
@@ -215,8 +222,6 @@ export default function PeminjamanPage() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canSubmit) return;
-    const stockError = validateStok();
-    if (stockError) { alert(stockError); return; }
     setSaving(true);
     try {
       const response = await fetch("/api/peminjaman", {
@@ -290,11 +295,11 @@ export default function PeminjamanPage() {
           cur.map((item) =>
             item.id === modal.item!.id
               ? {
-                  ...item,
-                  status: updatedStatus,
-                  waktuPengembalianAktual: data.data.waktuPengembalianAktual,
-                  catatanPenolakan: data.data.catatanPenolakan,
-                }
+                ...item,
+                status: updatedStatus,
+                waktuPengembalianAktual: data.data.waktuPengembalianAktual,
+                catatanPenolakan: data.data.catatanPenolakan,
+              }
               : item
           )
         );
@@ -311,7 +316,7 @@ export default function PeminjamanPage() {
     const filtered = filterStatus === "semua" ? list : list.filter((i) => i.status === filterStatus);
     const rows = [
       ["ID", "Peminjam", "Jenis", "NIM/NIK", "Ruang", "Peralatan", "Tanggal Pengajuan",
-        "Tanggal Pakai", "Durasi (Jam)", "Status", "Pengembalian Aktual", "Catatan Penolakan",
+        "Tanggal Pakai", "Durasi (Jam)", "Status", "Waktu Pengembalian", "Catatan Penolakan",
         "Keperluan", "Catatan"],
       ...filtered.map((item) => [
         item.id, item.peminjam.nama, item.peminjam.jenisAkun, item.peminjam.nimNik ?? "-",
@@ -345,12 +350,8 @@ export default function PeminjamanPage() {
         </div>
         <div className="flex gap-2">
           <button onClick={handleExport}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-            ⬇ Ekspor CSV
-          </button>
-          <button onClick={() => window.print()}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-            🖨 Cetak
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
+            Ekspor CSV
           </button>
         </div>
       </div>
@@ -394,17 +395,16 @@ export default function PeminjamanPage() {
               {selectedRuang && (
                 <p className="mt-1.5 text-xs text-slate-500">
                   Kapasitas: {selectedRuang.kapasitas ?? "—"} orang ·{" "}
-                  {selectedRuang.tersedia ? "✅ Tersedia" : "🔴 Tidak Tersedia"}
                 </p>
               )}
             </label>
 
-            {/* ── Peralatan multi-row — FIXED overflow ── */}
+            {/* Peralatan multi-row */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-slate-700">Peralatan (opsional)</p>
                 <button type="button" onClick={addPeralatanRow}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-800">
+                  className="text-xs font-medium text-orange-400 hover:text-blue-800">
                   + Tambah
                 </button>
               </div>
@@ -414,41 +414,60 @@ export default function PeminjamanPage() {
                 <div className="space-y-2">
                   {selectedPeralatan.map((row, i) => {
                     const opt = options.peralatan.find((p) => p.id === Number(row.peralatanId));
+                    const rowHasError = opt && (opt.stok <= 0 || row.jumlah > opt.stok || row.jumlah <= 0);
+                    const rowErrorMsg = opt
+                      ? opt.stok <= 0
+                        ? `Stok habis (stok: 0)`
+                        : row.jumlah <= 0
+                        ? `Jumlah harus lebih dari 0`
+                        : row.jumlah > opt.stok
+                        ? `Stok tidak cukup (tersedia: ${opt.stok}, diminta: ${row.jumlah})`
+                        : null
+                      : null;
                     return (
-                      <div key={i} className="grid grid-cols-[1fr_64px_28px] gap-2 items-center">
-                        {/*
-                          ✅ Fix overflow: pakai grid bukan flex,
-                          select diberi min-w-0 agar bisa menyusut,
-                          tambah truncate via CSS
-                        */}
-                        <select
-                          value={row.peralatanId}
-                          onChange={(e) => updatePeralatanRow(i, "peralatanId", e.target.value)}
-                          className="min-w-0 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                        >
-                          <option value="">Pilih peralatan</option>
-                          {options.peralatan.map((p) => (
-                            <option key={p.id} value={p.id} disabled={p.status !== "TERSEDIA"}>
-                              {p.nama}{p.kategori ? ` [${p.kategori}]` : ""} (stok: {p.stok})
-                              {p.status !== "TERSEDIA" ? " — tidak tersedia" : ""}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          type="number"
-                          min={1}
-                          max={opt?.stok ?? 99}
-                          value={row.jumlah}
-                          onChange={(e) => updatePeralatanRow(i, "jumlah", Number(e.target.value))}
-                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-2 py-2 text-sm text-slate-700 text-center outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removePeralatanRow(i)}
-                          className="flex items-center justify-center text-slate-400 hover:text-red-500 text-xl leading-none"
-                        >
-                          ×
-                        </button>
+                      <div key={i} className="space-y-1">
+                        <div className="grid grid-cols-[1fr_64px_28px] gap-2 items-center">
+                          <select
+                            value={row.peralatanId}
+                            onChange={(e) => updatePeralatanRow(i, "peralatanId", e.target.value)}
+                            className={`min-w-0 w-full rounded-2xl border bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 ${
+                              rowHasError
+                                ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                : "border-slate-200 focus:border-blue-400 focus:ring-blue-100"
+                            }`}
+                          >
+                            <option value="">Pilih peralatan</option>
+                            {options.peralatan.map((p) => (
+                              <option key={p.id} value={p.id} disabled={p.status !== "TERSEDIA"}>
+                                {p.nama}{p.kategori ? ` [${p.kategori}]` : ""} (stok: {p.stok})
+                                {p.status !== "TERSEDIA" ? " — tidak tersedia" : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            min={1}
+                            max={opt && opt.stok > 0 ? opt.stok : 1}
+                            value={row.jumlah}
+                            onChange={(e) => updatePeralatanRow(i, "jumlah", Number(e.target.value))}
+                            disabled={!row.peralatanId || (opt?.stok ?? 0) <= 0}
+                            className={`w-full rounded-2xl border bg-slate-50 px-2 py-2 text-sm text-slate-700 text-center outline-none focus:ring-2 disabled:opacity-50 ${
+                              rowHasError
+                                ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                : "border-slate-200 focus:border-blue-400 focus:ring-blue-100"
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removePeralatanRow(i)}
+                            className="flex items-center justify-center text-slate-400 hover:text-red-500 text-xl leading-none"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        {rowHasError && rowErrorMsg && (
+                          <p className="text-xs text-red-500 pl-1">{rowErrorMsg}</p>
+                        )}
                       </div>
                     );
                   })}
@@ -492,6 +511,10 @@ export default function PeminjamanPage() {
               className="inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300">
               {saving ? "Menyimpan..." : "Ajukan Peminjaman"}
             </button>
+
+            {stockError && (
+              <p className="text-xs text-red-500 text-center -mt-2">{stockError}</p>
+            )}
           </form>
         </section>
 
@@ -502,11 +525,10 @@ export default function PeminjamanPage() {
             <div className="flex flex-wrap gap-1.5">
               {(["semua", "menunggu", "disetujui", "ditolak", "selesai"] as const).map((s) => (
                 <button key={s} onClick={() => setFilterStatus(s)}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition ${
-                    filterStatus === s
+                  className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition ${filterStatus === s
                       ? "border-blue-500 bg-blue-50 text-blue-700"
                       : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
-                  }`}>
+                    }`}>
                   {s === "semua" ? "Semua" : STATUS_LABELS[s]}
                 </button>
               ))}
@@ -537,7 +559,7 @@ export default function PeminjamanPage() {
                         </p>
                         {item.peralatanList.length > 0 && (
                           <p className="mt-1 text-xs text-slate-400">
-                            🔧 {item.peralatanList.map((p) => `${p.peralatan.nama} ×${p.jumlah}`).join(", ")}
+                            {item.peralatanList.map((p) => `${p.peralatan.nama} ×${p.jumlah}`).join(", ")}
                           </p>
                         )}
                       </div>
@@ -560,7 +582,7 @@ export default function PeminjamanPage() {
                         )}
                         {item.status === "disetujui" && (
                           <button onClick={() => openModal(item, "selesai")}
-                            className="rounded-xl bg-slate-700 px-3 py-1 text-xs font-medium text-white transition hover:bg-slate-800">
+                            className="rounded-xl px-3 py-1 text-xs font-medium bg-green-600 text-white">
                             Selesai
                           </button>
                         )}
@@ -650,7 +672,7 @@ export default function PeminjamanPage() {
                 </p>
                 {modal.item.peralatanList.length > 0 && (
                   <p className="text-slate-400 text-xs">
-                    🔧 {modal.item.peralatanList.map((p) => `${p.peralatan.nama} ×${p.jumlah}`).join(", ")}
+                    {modal.item.peralatanList.map((p) => `${p.peralatan.nama} ×${p.jumlah}`).join(", ")}
                   </p>
                 )}
               </div>
@@ -674,7 +696,7 @@ export default function PeminjamanPage() {
               {modal.action === "selesai" && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700">
-                    Waktu Pengembalian Aktual
+                    Waktu Pengembalian
                   </label>
                   <input
                     type="datetime-local"

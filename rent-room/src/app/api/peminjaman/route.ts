@@ -63,6 +63,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "Ruang sedang tidak tersedia." }, { status: 409 });
     }
 
+    const konflik = await prisma.peminjaman.findFirst({
+      where: {
+        ruangId: Number(ruangId),
+        tanggalPakai: parsedTanggal,
+        status: { in: ["MENUNGGU", "DISETUJUI"] },
+      },
+    });
+    if (konflik) {
+      return NextResponse.json(
+        { success: false, message: `Ruang sudah ada peminjaman pada tanggal ${parsedTanggal.toLocaleDateString("id-ID")}. Pilih tanggal lain.` },
+        { status: 409 }
+      );
+    }
+
     // Validasi setiap peralatan
     const validPeralatanList: { peralatanId: number; jumlah: number }[] = [];
 
