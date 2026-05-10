@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum PeminjamanStatus {
+  MENUNGGU
+  DISETUJUI
+  DITOLAK
+  SELESAI
+}
+
+enum RuangStatus {
+  TERSEDIA
+  DIGUNAKAN
+}
+
+enum PeralatanStatus {
+  TERSEDIA
+  RUSAK
+}
+
+model Peminjam {
+  id         Int          @id @default(autoincrement())
+  nama       String
+  nimNik     String?
+  telp       String?
+  email      String?
+  fakultas   String?
+  jenisAkun  String       @default("mahasiswa")
+  createdAt  DateTime     @default(now())
+  peminjaman Peminjaman[]
+}
+
+model Ruang {
+  id         Int          @id @default(autoincrement())
+  nama       String
+  gedung     String?
+  lantai     String?
+  kapasitas  Int          @default(0)
+  status     RuangStatus  @default(TERSEDIA)
+  peminjaman Peminjaman[]
+}
+
+model Peralatan {
+  id             Int                    @id @default(autoincrement())
+  kode           String                 @unique  // Kode unik peralatan, contoh: PRY-001
+  nama           String
+  kategori       String?
+  jumlah         Int                    @default(1)
+  status         PeralatanStatus        @default(TERSEDIA)
+  peminjamanList PeminjamanPeralatan[]
+}
+
+model PeminjamanPeralatan {
+  id           Int        @id @default(autoincrement())
+  peminjaman   Peminjaman @relation(fields: [peminjamanId], references: [id], onDelete: Cascade)
+  peminjamanId Int
+  peralatan    Peralatan  @relation(fields: [peralatanId], references: [id])
+  peralatanId  Int
+  jumlah       Int        @default(1)
+}
+
+model Peminjaman {
+  id                      Int                    @id @default(autoincrement())
+  peminjam                Peminjam               @relation(fields: [peminjamId], references: [id])
+  peminjamId              Int
+  ruang                   Ruang                  @relation(fields: [ruangId], references: [id])
+  ruangId                 Int
+  peralatanList           PeminjamanPeralatan[]
+  tanggalPakai            DateTime
+  durasiJam               Int                    @default(1)
+  waktuPengembalianAktual DateTime?
+  keperluan               String?
+  status                  PeminjamanStatus       @default(MENUNGGU)
+  catatan                 String?
+  catatanPenolakan        String?
+  createdAt               DateTime               @default(now())
+}
